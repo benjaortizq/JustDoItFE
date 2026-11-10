@@ -2,6 +2,8 @@
   const $ = (id) => document.getElementById(id);
   const SESSION_KEY = 'justdoit.user';
   const STATUS_LABEL = { PENDING: 'Pendiente', INPROGRESS: 'En progreso', DONE: 'Hecha' };
+  // Estado siguiente de cada tarea. DONE es el último, por eso no aparece.
+  const NEXT_STATUS = { PENDING: 'INPROGRESS', INPROGRESS: 'DONE' };
 
   let currentUser = null;
   let users = [];
@@ -191,15 +193,21 @@
         await Api.tasks.update(targetUserId(), t.id, { status: select.value });
         await loadTasks();
       });
+      const actions = el('div', { class: 'row' },
+        el('button', { class: 'btn ghost small', onclick: () => openTaskDialog(t) }, 'Editar'),
+        el('button', { class: 'btn danger small', onclick: () => deleteTask(t) }, 'Eliminar'));
+      const next = NEXT_STATUS[t.status];
+      if (next) {
+        actions.prepend(el('button', { class: 'btn primary small', title: 'Pasar a ' + STATUS_LABEL[next],
+          onclick: () => advanceTask(t, next) }, 'Avanzar'));
+      }
       list.append(el('article', { class: 'card task ' + t.status },
         el('div', { class: 'row' }, el('span', { class: 'badge ' + t.status }, STATUS_LABEL[t.status] || t.status),
           el('span', { class: 'meta' }, '#' + t.id)),
         el('p', {}, t.description || ''),
         el('div', { class: 'meta' }, 'Límite: ' + (t.deadline || '-') + ' · Creada: ' + fmtDate(t.createdAt)),
         select,
-        el('div', { class: 'row' },
-          el('button', { class: 'btn ghost small', onclick: () => openTaskDialog(t) }, 'Editar'),
-          el('button', { class: 'btn danger small', onclick: () => deleteTask(t) }, 'Eliminar'))));
+        actions));
     });
   }
 
@@ -238,6 +246,14 @@
       await loadTasks();
     });
   };
+
+  async function advanceTask(t, next) {
+    await guard(async () => {
+      await Api.tasks.update(targetUserId(), t.id, { status: next });
+      toast('Tarea avanzada a ' + STATUS_LABEL[next]);
+      await loadTasks();
+    });
+  }
 
   async function deleteTask(t) {
     if (!confirm('¿Eliminar esta tarea?')) return;
